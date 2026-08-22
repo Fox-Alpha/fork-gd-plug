@@ -164,7 +164,7 @@ func show_config_syntax():
 		"dev": "Boolean to mark the plugin as dev or not, plugin marked as dev will not be installed when production command given",
 		"on_updated": "Post update hook, a function name declared in plug.gd that will be called whenever the plugin installed/updated",
 		"install_root": "Destination directory where included files will be installed",
-		"strip_prefix": "Path prefix to strip from included source paths before copying to install_root. If omitted and install_root is set with a single included directory, that directory is stripped automatically"
+		"strip_prefix": "Path prefix to strip from included source paths before copying to install_root. If omitted and install_root is set with a single included directory (other than addons/ or .), that directory is stripped automatically. Trailing / is added automatically if missing"
 	}
 	logger.indent()
 	logger.table_start()
@@ -516,15 +516,15 @@ func install(plugin):
 		include = ["addons/"]
 	
 	var strip_prefix = plugin.get("strip_prefix", "")
-	# Auto strip included directory into install_root when install_root is set and a single directory is included
+	# Auto strip included directory into install_root when install_root is set and a single non-default directory is included
 	if strip_prefix.is_empty() and not plugin.install_root.is_empty() and include.size() == 1:
 		var include_path = include[0]
-		if include_path != "." and not include_path.is_empty():
+		if include_path != "." and include_path != "addons/" and not include_path.is_empty():
 			var include_dir = plugin.plug_dir + "/" + include_path
 			if project_dir.dir_exists(include_dir):
 				strip_prefix = include_path
-				if not strip_prefix.ends_with("/"):
-					strip_prefix += "/"
+	if not strip_prefix.is_empty() and not strip_prefix.ends_with("/"):
+		strip_prefix += "/"
 	
 	var copy_args = {"include": include, "exclude": plugin.exclude, "strip_prefix": strip_prefix, "root_from": plugin.plug_dir}
 	if OS.get_environment(ENV_FORCE).is_empty() and OS.get_environment(ENV_TEST).is_empty():

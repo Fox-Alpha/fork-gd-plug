@@ -98,7 +98,7 @@ Arguments:
 | `dev`          | `bool`          | Toggle `dev`  mode. `dev` plugins will not be installed when `install` with `production` option(`dev` plugins will be removed if already installed)                                           |
 | `on_updated`   | `String`        | Post update hook, a function name declared in `plug.gd` that will be called whenever the plugin installed/updated. See [Post Update Hook](https://github.com/imjp94/gd-plug#post-update-hook) |
 | `install_root` | `String`        | Destination directory where included files will be installed                                                                                                                                  |
-| `strip_prefix` | `String`        | Path prefix to strip from included source paths before copying to `install_root`. If omitted and `install_root` is set with a single included directory, that directory is stripped automatically |
+| `strip_prefix` | `String`        | Path prefix to strip from included source paths before copying to `install_root`. If omitted and `install_root` is set with a single included directory (other than `addons/` or `.`), that directory is stripped automatically. Trailing `/` is added automatically if missing |
 
 ## Installation
 
