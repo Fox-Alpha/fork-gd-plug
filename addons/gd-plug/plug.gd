@@ -162,7 +162,9 @@ func show_config_syntax():
 		"tag": "Name of tag to freeze to",
 		"commit": "Commit hash string to freeze to, must be full length 40 digits commit-hash, for example, 7a642f90d3fb88976dd913051de994e58e838d1a",
 		"dev": "Boolean to mark the plugin as dev or not, plugin marked as dev will not be installed when production command given",
-		"on_updated": "Post update hook, a function name declared in plug.gd that will be called whenever the plugin installed/updated"
+		"on_updated": "Post update hook, a function name declared in plug.gd that will be called whenever the plugin installed/updated",
+		"install_root": "Destination directory where included files will be installed",
+		"strip_prefix": "Path prefix to strip from included source paths before copying to install_root. If omitted and install_root is set with a single included directory (other than addons/ or .), that directory is stripped automatically. Trailing / is added automatically if missing"
 	}
 	logger.indent()
 	logger.table_start()
@@ -403,6 +405,8 @@ func plug(repo, args={}):
 	is_valid = is_valid and validate_var_type(plugin, "on_updated", TYPE_STRING, "String")
 	plugin.install_root = args.get("install_root", "")
 	is_valid = is_valid and validate_var_type(plugin, "install_root", TYPE_STRING, "String")
+	plugin.strip_prefix = args.get("strip_prefix", "")
+	is_valid = is_valid and validate_var_type(plugin, "strip_prefix", TYPE_STRING, "String")
 
 	if is_valid:
 		_plugged_plugins[plugin.name] = plugin
@@ -510,9 +514,25 @@ func install(plugin):
 	var include = plugin.get("include", [])
 	if include.is_empty(): # Auto include "addons/" folder if not explicitly specified
 		include = ["addons/"]
+	
+	var strip_prefix = plugin.get("strip_prefix", "")
+	# Auto strip included directory into install_root when install_root is set and a single non-default directory is included
+	if strip_prefix.is_empty() and not plugin.install_root.is_empty() and include.size() == 1:
+		var include_path = include[0]
+		if include_path != "." and include_path != "addons/" and not include_path.is_empty():
+			var include_dir = plugin.plug_dir + "/" + include_path
+			if project_dir.dir_exists(include_dir):
+				strip_prefix = include_path
+	if not strip_prefix.is_empty() and not strip_prefix.ends_with("/"):
+		strip_prefix += "/"
+	
+	var copy_args = {"include": include, "exclude": plugin.exclude, "strip_prefix": strip_prefix, "root_from": plugin.plug_dir}
 	if OS.get_environment(ENV_FORCE).is_empty() and OS.get_environment(ENV_TEST).is_empty():
 		var is_exists = false
-		var dest_files = directory_copy_recursively(plugin.plug_dir, "res://" + plugin.install_root, {"include": include, "exclude": plugin.exclude, "test": true, "silent_test": true})
+		var test_args = copy_args.duplicate()
+		test_args["test"] = true
+		test_args["silent_test"] = true
+		var dest_files = directory_copy_recursively(plugin.plug_dir, "res://" + plugin.install_root, test_args)
 		for dest_file in dest_files:
 			if project_dir.file_exists(dest_file):
 				logger.warn("%s attempting to overwrite file %s" % [plugin.name, dest_file])
@@ -523,7 +543,9 @@ func install(plugin):
 
 	logger.info("Installing files for %s..." % plugin.name)
 	var test = !OS.get_environment(ENV_TEST).is_empty()
-	var dest_files = directory_copy_recursively(plugin.plug_dir, "res://" + plugin.install_root, {"include": include, "exclude": plugin.exclude, "test": test})
+	var run_args = copy_args.duplicate()
+	run_args["test"] = test
+	var dest_files = directory_copy_recursively(plugin.plug_dir, "res://" + plugin.install_root, run_args)
 	plugin.dest_files = dest_files
 	logger.info("Installed %d file%s for %s" % [dest_files.size(), "s" if dest_files.size() > 1 else "", plugin.name])
 	if plugin.name != "gd-plug":
@@ -584,6 +606,8 @@ func directory_copy_recursively(from, to, args={}):
 	var exclude = args.get("exclude", [])
 	var test = args.get("test", false)
 	var silent_test = args.get("silent_test", false)
+	var strip_prefix = args.get("strip_prefix", "")
+	var root_from = args.get("root_from", from)
 	var dir = DirAccess.open(from)
 	dir.include_hidden = true
 	var dest_files = []
@@ -592,7 +616,25 @@ func directory_copy_recursively(from, to, args={}):
 		var file_name = dir.get_next()
 		while not file_name.is_empty():
 			var source = dir.get_current_dir() + ("/" if dir.get_current_dir() != "res://" else "") + file_name
-			var dest = to + ("/" if to != "res://" else "") + file_name
+			var relative_to_root = source.trim_prefix(root_from)
+			if relative_to_root.begins_with("/"):
+				relative_to_root = relative_to_root.substr(1)
+			
+			var dest
+			if strip_prefix.is_empty():
+				dest = to + ("/" if to != "res://" else "") + file_name
+			else:
+				if dir.current_is_dir():
+					var dir_prefix = relative_to_root + "/" if not relative_to_root.is_empty() else ""
+					if strip_prefix.begins_with(dir_prefix) or dir_prefix.begins_with(strip_prefix):
+						dest = to
+					else:
+						dest = to + ("/" if to != "res://" else "") + file_name
+				else:
+					var relative_dest = relative_to_root
+					if relative_dest.begins_with(strip_prefix):
+						relative_dest = relative_dest.substr(strip_prefix.length())
+					dest = to + ("/" if to != "res://" else "") + relative_dest
 			
 			if dir.current_is_dir():
 				dest_files += directory_copy_recursively(source, dest, args)
@@ -608,7 +650,7 @@ func directory_copy_recursively(from, to, args={}):
 							if test:
 								if not silent_test: logger.warn("[TEST] Writing to %s" % dest)
 							else:
-								dir.make_dir_recursive(to)
+								dir.make_dir_recursive(dest.get_base_dir())
 								if dir.copy(source, dest) == OK:
 									logger.debug("Copy from %s to %s" % [source, dest])
 							dest_files.append(dest)
