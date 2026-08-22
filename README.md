@@ -88,15 +88,17 @@ or
 
 Arguments:
 
-| Argument     | Type            | Description                                                                                                                                                                                   |
-| ------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `include`    | `Array[String]` | Files or directories to include, only `addons/` will be included if omitted. (No expression like wildcard(*) supported yet.)                                                                  |
-| `exclude`    | `Array[String]` | Files or directories to exclude. (No expression like wildcard(*) supported yet.)                                                                                                              |
-| `branch`     | `String`        | Name of branch to freeze to                                                                                                                                                                   |
-| `tag`        | `String`        | Name of tag to freeze to                                                                                                                                                                      |
-| `commit`     | `String`        | Commit hash string to freeze to, must be full length 40 digits commit-hash, for example, `7a642f90d3fb88976dd913051de994e58e838d1a`.                                                          |
-| `dev`        | `bool`          | Toggle `dev`  mode. `dev` plugins will not be installed when `install` with `production` option(`dev` plugins will be removed if already installed)                                           |
-| `on_updated` | `String`        | Post update hook, a function name declared in `plug.gd` that will be called whenever the plugin installed/updated. See [Post Update Hook](https://github.com/imjp94/gd-plug#post-update-hook) |
+| Argument       | Type            | Description                                                                                                                                                                                   |
+| -------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `include`      | `Array[String]` | Files or directories to include, only `addons/` will be included if omitted. (No expression like wildcard(*) supported yet.)                                                                  |
+| `exclude`      | `Array[String]` | Files or directories to exclude. (No expression like wildcard(*) supported yet.)                                                                                                              |
+| `branch`       | `String`        | Name of branch to freeze to                                                                                                                                                                   |
+| `tag`          | `String`        | Name of tag to freeze to                                                                                                                                                                      |
+| `commit`       | `String`        | Commit hash string to freeze to, must be full length 40 digits commit-hash, for example, `7a642f90d3fb88976dd913051de994e58e838d1a`.                                                          |
+| `dev`          | `bool`          | Toggle `dev`  mode. `dev` plugins will not be installed when `install` with `production` option(`dev` plugins will be removed if already installed)                                           |
+| `on_updated`   | `String`        | Post update hook, a function name declared in `plug.gd` that will be called whenever the plugin installed/updated. See [Post Update Hook](https://github.com/imjp94/gd-plug#post-update-hook) |
+| `install_root` | `String`        | Destination directory where included files will be installed                                                                                                                                  |
+| `strip_prefix` | `String`        | Path prefix to strip from included source paths before copying to `install_root`. If omitted and `install_root` is set with a single included directory (other than `addons/` or `.`), that directory is stripped automatically. Trailing `/` is added automatically if missing |
 
 ## Installation
 
@@ -220,6 +222,11 @@ However, some plugin's repository may be structured differently, thus, different
 - Repository contains only addons files, for example, [HungryProton/scatter](https://github.com/HungryProton/scatter/tree/v3)
   - Change `install_root` to destination directory and include all files:
     `plug("HungryProton/scatter", {"install_root": "addons/scatter", "include": ["."]})`
+- Addon files are nested in a non-standard directory, for example, [hi-godot/godot-ai](https://github.com/hi-godot/godot-ai)
+  - Use `install_root` with the included directory; the directory is automatically stripped:
+    `plug("hi-godot/godot-ai", {"install_root": "addons/godot_ai", "include": ["plugin/addons/godot_ai/"]})`
+  - Or use `strip_prefix` to strip a specific path prefix:
+    `plug("bnjmntmm/godot-exoplayer", {"install_root": "addons/godot_exoplayer", "include": ["plugin/demo/addons/godot_exoplayer/"], "strip_prefix": "plugin/demo/addons/godot_exoplayer/"})`
 
 ```gdscript
 extends "res://addons/gd-plug/plug.gd"
@@ -244,6 +251,9 @@ func _plugging():
 
     # Repo that contains only addon files
     plug("HungryProton/scatter", {"install_root": "addons/scatter", "include": ["."]})
+
+    # Addon files nested in a non-standard directory (automatically stripped when install_root is set)
+    plug("hi-godot/godot-ai", {"install_root": "addons/godot_ai", "include": ["plugin/addons/godot_ai/"]})
 
     # Source other than github
     plug("https://gitlab.com/Xecestel/sound-manager") # Gitlab
