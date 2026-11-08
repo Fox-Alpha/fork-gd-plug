@@ -1048,11 +1048,13 @@ class _GitExecutable extends RefCounted:
 	func get_commit_comparison(branch_a, branch_b):
 		var output = []
 		var exit = _execute("git rev-list --count --left-right %s...%s" % [branch_a, branch_b], output)
-		var raw_ahead_behind = output[0].split("\t")
+		# Ohne Erfolg gibt es keine Ausgabe, output[0] fehlt dann
+		if exit != OK or output.is_empty():
+			return []
 		var ahead_behind = []
-		for msg in raw_ahead_behind:
+		for msg in output[0].strip_edges().split("\t"):
 			ahead_behind.append(msg.to_int())
-		return ahead_behind if exit == OK else []
+		return ahead_behind
 
 
 	func get_current_branch():
