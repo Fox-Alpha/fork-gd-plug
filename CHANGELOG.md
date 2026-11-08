@@ -1,4 +1,4 @@
-# fork-gd-plug (development)
+# fork-gd-plug
 
 Die folgenden Einträge wurden automatisch aus der Git-Historie generiert. Die Reihenfolge der Typen ist Add → Chg → Upd → Ref → Rem → Fix → Docs → Ren → Mov → Cfg → Fmt → sonstige.
 
@@ -6,6 +6,7 @@ Die folgenden Einträge wurden automatisch aus der Git-Historie generiert. Die R
 
 - Chg: init erzeugt plug.gd in Godot-4-Schreibweise [f774c02](https://github.com/Fox-Alpha/fork-gd-plug/commit/f774c02)
 - Chg: upgrade lädt gd-plug aus dem eigenen Fork [fe7ab8f](https://github.com/Fox-Alpha/fork-gd-plug/commit/fe7ab8f)
+- Upd: Version auf 0.3.0 [9ce7ce8](https://github.com/Fox-Alpha/fork-gd-plug/commit/9ce7ce8)
 - Ref: statische Typisierung und Godot-4-Syntax in plug.gd [039e476](https://github.com/Fox-Alpha/fork-gd-plug/commit/039e476)
 - Ref: plug.gd in Regionen nach Styleguide gegliedert [7128bf2](https://github.com/Fox-Alpha/fork-gd-plug/commit/7128bf2)
 - Rem: ungenutzte Variablen in plug.gd [a06675c](https://github.com/Fox-Alpha/fork-gd-plug/commit/a06675c)
@@ -19,6 +20,7 @@ Die folgenden Einträge wurden automatisch aus der Git-Historie generiert. Die R
 - Fix: Exit-Code war nach jedem Lauf 255 [5135168](https://github.com/Fox-Alpha/fork-gd-plug/commit/5135168)
 - Fix: install deinstalliert gd-plug nach einem upgrade [791bb8e](https://github.com/Fox-Alpha/fork-gd-plug/commit/791bb8e)
 - Fix: upgrade löscht den Klon, während er noch heruntergeladen wird [cf87d75](https://github.com/Fox-Alpha/fork-gd-plug/commit/cf87d75)
+- Docs: CHANGELOG aus der Git-Historie erzeugt [9c9e340](https://github.com/Fox-Alpha/fork-gd-plug/commit/9c9e340)
 - Docs: Beispiel im Klassen-Docstring an das neue init-Template angeglichen [3704d55](https://github.com/Fox-Alpha/fork-gd-plug/commit/3704d55)
 - Docs: Docstrings für plug.gd [11738bc](https://github.com/Fox-Alpha/fork-gd-plug/commit/11738bc)
 - Docs: deutsche Fassung der README [5f08577](https://github.com/Fox-Alpha/fork-gd-plug/commit/5f08577)
