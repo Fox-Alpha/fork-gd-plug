@@ -317,7 +317,9 @@ func _plug_upgrade():
 	OS.set_environment(ENV_FORCE, "true") # Required to overwrite res://addons/gd-plug/plug.gd
 	threadpool.enqueue_task(install_plugin.bind(gd_plug))
 	threadpool.disconnect("all_thread_finished", request_quit)
-	if not threadpool.is_all_thread_finished():
+	# Bei inaktivem Pool ist die Installation nur eingereiht, noch kein Thread läuft.
+	# Ohne Prüfung der Warteschlange liefe das Löschen von plug_dir parallel zum Klonen.
+	if not (threadpool.is_all_thread_finished() and threadpool.is_all_task_finished()):
 		threadpool.active = true
 		await threadpool.all_thread_finished
 		threadpool.active = false
