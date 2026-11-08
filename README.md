@@ -10,6 +10,7 @@ Minimal plugin manager for Godot, inspired by [vim-plug](https://github.com/june
 
 - [Features](#features)
 - [Commands](#commands)
+- [Upgrade source](#upgrade-source)
 - [Configs](#configs)
 - [Installation](#installation)
 - [Getting Started](#getting-started)
@@ -52,7 +53,7 @@ Actions:
 | `install` alias `update` | Install or update(to latest version if not freezed) "plugged" plugins based on `plug.gd`, or uninstall "unplugged" plugins |
 | `uninstall`              | Uninstall all plugins, regardless of `plug.gd`                                                                             |
 | `clean`                  | Clean unused files/folders from `/.plugged`                                                                                |
-| `upgrade`                | Upgrade `addons/gd-plug/plug.gd` to the latest version                                                                     |
+| `upgrade`                | Upgrade `addons/gd-plug/plug.gd` to the latest version of this fork, see [Upgrade source](#upgrade-source)                 |
 | `version`                | Print current version of gd-plug                                                                                           |
 | `help`                   | Show help                                                                                                                  |
 
@@ -68,6 +69,23 @@ Options:
 | `debug` alias `d`           | Print debug message                                                                                                                                                                             |
 | `detail`                    | Print with datetime and log level, "[{time}] [{level}] {msg}"                                                                                                                                   |
 | `quiet` alias `q`, `silent` | Disable logging                                                                                                                                                                                 |
+
+### Upgrade source
+
+`upgrade` installs gd-plug from this fork (`Fox-Alpha/fork-gd-plug`, branch `development`), not from the original
+`imjp94/gd-plug`, so the changes of the fork are kept. Repo and branch can be overridden with environment variables:
+
+| Variable                 | Default                  | Description                                                    |
+| ------------------------ | ------------------------ | -------------------------------------------------------------- |
+| `GD_PLUG_UPGRADE_REPO`   | `Fox-Alpha/fork-gd-plug` | Github repo `username/repo` or full git URL (e.g. `file:///…`) |
+| `GD_PLUG_UPGRADE_BRANCH` | `development`            | Branch to install from                                         |
+
+```shell
+GD_PLUG_UPGRADE_BRANCH=master godot --headless -s plug.gd upgrade
+```
+
+> Versions of gd-plug before this change still upgrade from `imjp94/gd-plug`. Switch to the fork once by copying
+> `addons/gd-plug/` from a clone of this repo (branch `development`), afterwards `upgrade` keeps using the fork.
 
 ## Configs
 

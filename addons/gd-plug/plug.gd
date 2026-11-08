@@ -15,6 +15,12 @@ const ENV_TEST = "test"
 const ENV_FORCE = "force"
 const ENV_KEEP_IMPORT_FILE = "keep_import_file"
 const ENV_KEEP_IMPORT_RESOURCE_FILE = "keep_import_resource_file"
+# Quelle für den Befehl "upgrade": eigener Fork statt imjp94/gd-plug, damit die Änderungen des Forks erhalten bleiben
+const DEFAULT_UPGRADE_REPO = "Fox-Alpha/fork-gd-plug"
+const DEFAULT_UPGRADE_BRANCH = "development"
+# Umgebungsvariablen zum Überschreiben von Repo und Branch beim Aufruf von "upgrade"
+const ENV_UPGRADE_REPO = "GD_PLUG_UPGRADE_REPO"
+const ENV_UPGRADE_BRANCH = "GD_PLUG_UPGRADE_BRANCH"
 
 const MSG_PLUG_START_ASSERTION = "_plug_start() must be called first"
 
@@ -112,7 +118,7 @@ func show_syntax():
 		"install(alias update)": "Install or update plugins based on plug.gd",
 		"uninstall": "Uninstall all plugins, regardless of plug.gd",
 		"clean": "Clean unused files/folders from /.plugged",
-		"upgrade": "Upgrade addons/gd-plug/plug.gd to the latest version",
+		"upgrade": "Upgrade addons/gd-plug/plug.gd to the latest version of the fork (GD_PLUG_UPGRADE_REPO, GD_PLUG_UPGRADE_BRANCH)",
 		"version": "Print current version of gd-plug",
 	}
 	logger.indent()
@@ -295,17 +301,34 @@ func _plug_clean():
 func _plug_upgrade():
 	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
 	threadpool.active = false
-	logger.info("Upgrading gd-plug...")
-	plug("imjp94/gd-plug")
-	var gd_plug = _plugged_plugins["gd-plug"]
+	var upgrade_repo = OS.get_environment(ENV_UPGRADE_REPO).strip_edges()
+	if upgrade_repo.is_empty():
+		upgrade_repo = DEFAULT_UPGRADE_REPO
+	var upgrade_branch = OS.get_environment(ENV_UPGRADE_BRANCH).strip_edges()
+	if upgrade_branch.is_empty():
+		upgrade_branch = DEFAULT_UPGRADE_BRANCH
+	logger.info("Upgrading gd-plug from %s (branch %s)..." % [upgrade_repo, upgrade_branch])
+	plug(upgrade_repo, {"branch": upgrade_branch})
+	# Name aus dem Repo ableiten, beim Fork ist das "fork-gd-plug" statt "gd-plug"
+	var gd_plug = _plugged_plugins.get(get_plugin_name_from_repo(upgrade_repo))
+	if gd_plug == null:
+		logger.error("Failed to plug %s, upgrade aborted" % upgrade_repo)
+		return
+	# Stand gd-plug schon vorher im Index (über die plug.gd des Projekts), bleibt der Eintrag erhalten
+	var keep_in_index = gd_plug.name in _installed_plugins
 	OS.set_environment(ENV_FORCE, "true") # Required to overwrite res://addons/gd-plug/plug.gd
 	threadpool.enqueue_task(install_plugin.bind(gd_plug))
 	threadpool.disconnect("all_thread_finished", request_quit)
-	if not threadpool.is_all_thread_finished():
+	# Bei inaktivem Pool ist die Installation nur eingereiht, noch kein Thread läuft.
+	# Ohne Prüfung der Warteschlange liefe das Löschen von plug_dir parallel zum Klonen.
+	if not (threadpool.is_all_thread_finished() and threadpool.is_all_task_finished()):
 		threadpool.active = true
 		await threadpool.all_thread_finished
 		threadpool.active = false
 		logger.debug("All installation finished! Ready to uninstall removed plugins...")
+	# Sonst stünde gd-plug in index.cfg und das nächste "install" würde es als entfernt deinstallieren
+	if not keep_in_index:
+		_installed_plugins.erase(gd_plug.name)
 	threadpool.connect("all_thread_finished", request_quit)
 	threadpool.enqueue_task(directory_delete_recursively.bind(gd_plug.plug_dir))
 	threadpool.active = true
