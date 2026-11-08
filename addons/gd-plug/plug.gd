@@ -29,7 +29,7 @@ var installation_config = ConfigFile.new()
 var logger = _Logger.new()
 
 var _installed_plugins
-var _plugged_plugins = {}
+var _plugged_plugins = { }
 
 var _threads = []
 var _mutex = Mutex.new()
@@ -40,6 +40,7 @@ var threadpool = _ThreadPool.new(logger)
 func _init():
 	threadpool.connect("all_thread_finished", request_quit)
 	project_dir = DirAccess.open("res://")
+
 
 func _initialize():
 	var args = OS.get_cmdline_args()
@@ -106,6 +107,7 @@ func _initialize():
 	# NOTE: Do no put anything after this line except request_quit(), as _plug_*() may call request_quit()
 	request_quit(0)
 
+
 func show_syntax():
 	logger.info("gd-plug - Minimal plugin manager for Godot")
 	logger.info("")
@@ -140,7 +142,7 @@ func show_syntax():
 		"detail": "Print with datetime and log level, \"[{time}] [{level}] {msg}\"",
 		"quiet(alias q, silent)": "Disable logging",
 		"help": "Show this help",
-		"help-config": "plug.gd configuration documentation"
+		"help-config": "plug.gd configuration documentation",
 	}
 	logger.indent()
 	logger.table_start()
@@ -149,6 +151,7 @@ func show_syntax():
 	logger.table_end()
 	logger.dedent()
 	logger.info("")
+
 
 func show_config_syntax():
 	logger.info("Configs: plug(src, args={})")
@@ -170,7 +173,7 @@ func show_config_syntax():
 		"dev": "Boolean to mark the plugin as dev or not, plugin marked as dev will not be installed when production command given",
 		"on_updated": "Post update hook, a function name declared in plug.gd that will be called whenever the plugin installed/updated",
 		"install_root": "Destination directory where included files will be installed",
-		"strip_prefix": "Path prefix to strip from included source paths before copying to install_root. If omitted and install_root is set with a single included directory (other than addons/ or .), that directory is stripped automatically. Trailing / is added automatically if missing"
+		"strip_prefix": "Path prefix to strip from included source paths before copying to install_root. If omitted and install_root is set with a single included directory (other than addons/ or .), that directory is stripped automatically. Trailing / is added automatically if missing",
 	}
 	logger.indent()
 	logger.table_start()
@@ -180,27 +183,33 @@ func show_config_syntax():
 	logger.dedent()
 	logger.info("")
 
+
 func _process(delta):
 	threadpool.process(delta)
 	return false # Must return false, unless we are terminating.
+
 
 func _finalize():
 	_plug_end()
 	threadpool.stop()
 	logger.info("Finished, elapsed %.3fs" % ((Time.get_ticks_msec() - _start_time) / 1000.0))
 
+
 func _on_updated(plugin):
 	pass
+
 
 func _plugging():
 	pass
 
-func request_quit(exit_code=-1):
+
+func request_quit(exit_code = -1):
 	if threadpool.is_all_thread_finished() and threadpool.is_all_task_finished():
 		quit(exit_code)
 		return true
 	logger.debug("Request quit declined, threadpool is still running")
 	return false
+
 
 # Index installed plugins, or create directory "plugged" if not exists
 func _plug_start():
@@ -212,7 +221,8 @@ func _plug_start():
 		logger.debug("Installation config loaded")
 	else:
 		logger.debug("Installation config not found")
-	_installed_plugins = installation_config.get_value("plugin", "installed", {})
+	_installed_plugins = installation_config.get_value("plugin", "installed", { })
+
 
 # Install plugin or uninstall plugin if unlisted
 func _plug_end():
@@ -228,6 +238,7 @@ func _plug_end():
 		logger.warn("Skipped saving of plugged config in test mode")
 	_installed_plugins = null
 
+
 func _plug_init():
 	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
 	logger.info("Init gd-plug...")
@@ -238,6 +249,7 @@ func _plug_init():
 		file.store_string(INIT_PLUG_SCRIPT)
 		file.close()
 		logger.info("Created %s" % DEFAULT_USER_PLUG_SCRIPT_PATH)
+
 
 func _plug_install():
 	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
@@ -272,6 +284,7 @@ func _plug_install():
 			threadpool.enqueue_task(uninstall_plugin.bind(plugin), Thread.PRIORITY_LOW)
 	threadpool.active = true
 
+
 func _plug_uninstall():
 	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
 	threadpool.active = false
@@ -280,6 +293,7 @@ func _plug_uninstall():
 		var installed_plugin = get_installed_plugin(plugin.name)
 		threadpool.enqueue_task(uninstall_plugin.bind(installed_plugin), Thread.PRIORITY_LOW)
 	threadpool.active = true
+
 
 func _plug_clean():
 	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
@@ -298,6 +312,7 @@ func _plug_clean():
 	plugged_dir.list_dir_end()
 	threadpool.active = true
 
+
 func _plug_upgrade():
 	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
 	threadpool.active = false
@@ -308,7 +323,7 @@ func _plug_upgrade():
 	if upgrade_branch.is_empty():
 		upgrade_branch = DEFAULT_UPGRADE_BRANCH
 	logger.info("Upgrading gd-plug from %s (branch %s)..." % [upgrade_repo, upgrade_branch])
-	plug(upgrade_repo, {"branch": upgrade_branch})
+	plug(upgrade_repo, { "branch": upgrade_branch })
 	# Name aus dem Repo ableiten, beim Fork ist das "fork-gd-plug" statt "gd-plug"
 	var gd_plug = _plugged_plugins.get(get_plugin_name_from_repo(upgrade_repo))
 	if gd_plug == null:
@@ -332,6 +347,7 @@ func _plug_upgrade():
 	threadpool.connect("all_thread_finished", request_quit)
 	threadpool.enqueue_task(directory_delete_recursively.bind(gd_plug.plug_dir))
 	threadpool.active = true
+
 
 func _plug_status():
 	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
@@ -379,7 +395,10 @@ func _plug_status():
 			file = plug_directory.get_next()
 		plug_directory.list_dir_end()
 	if orphan_dirs:
-		logger.info("\nOrphan directory, %d found in %s, execute \"clean\" command to remove" % [orphan_dirs.size(), DEFAULT_PLUG_DIR])
+		logger.info(
+			"\nOrphan directory, %d found in %s, execute \"clean\" command to remove"
+			% [orphan_dirs.size(), DEFAULT_PLUG_DIR]
+		)
 		for dir in orphan_dirs:
 			logger.info("- %s" % dir)
 	threadpool.active = true
@@ -387,15 +406,16 @@ func _plug_status():
 	if has_checking_plugin:
 		request_quit()
 
+
 # Index & validate plugin
-func plug(repo, args={}):
+func plug(repo, args = { }):
 	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
 	repo = repo.strip_edges()
 	var plugin_name = get_plugin_name_from_repo(repo)
 	if plugin_name in _plugged_plugins:
 		logger.info("Plugin already plugged: %s" % plugin_name)
 		return
-	var plugin = {}
+	var plugin = { }
 	plugin.name = plugin_name
 	plugin.url = ""
 	if ":" in repo:
@@ -437,6 +457,7 @@ func plug(repo, args={}):
 	else:
 		logger.error("Failed to plug %s, validation error" % plugin.name)
 
+
 func install_plugin(plugin):
 	var test = !OS.get_environment(ENV_TEST).is_empty()
 	var can_install = OS.get_environment(ENV_PRODUCTION).is_empty() if plugin.dev else true
@@ -453,13 +474,15 @@ func install_plugin(plugin):
 		else:
 			logger.error("Failed to install plugin %s with error code %d" % [plugin.name, result])
 
+
 func uninstall_plugin(plugin):
 	var test = !OS.get_environment(ENV_TEST).is_empty()
 	logger.info("Uninstalling plugin %s..." % plugin.name)
 	uninstall(plugin)
-	directory_delete_recursively(plugin.plug_dir, {"exclude": [DEFAULT_CONFIG_PATH], "test": test})
+	directory_delete_recursively(plugin.plug_dir, { "exclude": [DEFAULT_CONFIG_PATH], "test": test })
 
-func update_plugin(plugin, checking=false):
+
+func update_plugin(plugin, checking = false):
 	if not (plugin.name in _installed_plugins):
 		logger.info("%s new plugin" % plugin.name)
 		return true
@@ -500,7 +523,7 @@ func update_plugin(plugin, checking=false):
 			logger.info("%s cloning from %s..." % [plugin.name, plugin.url])
 			var test = !OS.get_environment(ENV_TEST).is_empty()
 			uninstall(get_installed_plugin(plugin.name))
-			directory_delete_recursively(plugin.plug_dir, {"exclude": [DEFAULT_CONFIG_PATH], "test": test})
+			directory_delete_recursively(plugin.plug_dir, { "exclude": [DEFAULT_CONFIG_PATH], "test": test })
 			if download(plugin) == OK:
 				install(plugin)
 		elif should_pull:
@@ -513,8 +536,10 @@ func update_plugin(plugin, checking=false):
 			uninstall(get_installed_plugin(plugin.name))
 			install(plugin)
 
+
 func check_plugin(plugin):
 	update_plugin(plugin, true)
+
 
 func download(plugin):
 	logger.info("Downloading %s from %s..." % [plugin.name, plugin.url])
@@ -523,21 +548,26 @@ func download(plugin):
 	if project_dir.dir_exists(plugin.plug_dir):
 		directory_delete_recursively(plugin.plug_dir)
 	project_dir.make_dir(plugin.plug_dir)
-	var result = _GitExecutable.new(global_dest_dir, logger).clone(plugin.url, global_dest_dir, {"branch": plugin.branch, "tag": plugin.tag, "commit": plugin.commit})
+	var result = _GitExecutable.new(global_dest_dir, logger).clone(
+		plugin.url,
+		global_dest_dir,
+		{ "branch": plugin.branch, "tag": plugin.tag, "commit": plugin.commit },
+	)
 	if result.exit == OK:
 		logger.info("Successfully download %s" % [plugin.name])
 	else:
 		logger.info("Failed to download %s" % plugin.name)
 		# Make sure plug_dir is clean when failed
-		directory_delete_recursively(plugin.plug_dir, {"exclude": [DEFAULT_CONFIG_PATH], "test": test})
+		directory_delete_recursively(plugin.plug_dir, { "exclude": [DEFAULT_CONFIG_PATH], "test": test })
 	project_dir.remove(plugin.plug_dir) # Remove empty directory
 	return result.exit
+
 
 func install(plugin):
 	var include = plugin.get("include", [])
 	if include.is_empty(): # Auto include "addons/" folder if not explicitly specified
 		include = ["addons/"]
-	
+
 	var strip_prefix = plugin.get("strip_prefix", "")
 	# Auto strip included directory into install_root when install_root is set and a single non-default directory is included
 	if strip_prefix.is_empty() and not plugin.install_root.is_empty() and include.size() == 1:
@@ -548,8 +578,13 @@ func install(plugin):
 				strip_prefix = include_path
 	if not strip_prefix.is_empty() and not strip_prefix.ends_with("/"):
 		strip_prefix += "/"
-	
-	var copy_args = {"include": include, "exclude": plugin.exclude, "strip_prefix": strip_prefix, "root_from": plugin.plug_dir}
+
+	var copy_args = {
+		"include": include,
+		"exclude": plugin.exclude,
+		"strip_prefix": strip_prefix,
+		"root_from": plugin.plug_dir,
+	}
 	if OS.get_environment(ENV_FORCE).is_empty() and OS.get_environment(ENV_TEST).is_empty():
 		var is_exists = false
 		var test_args = copy_args.duplicate()
@@ -561,7 +596,10 @@ func install(plugin):
 				logger.warn("%s attempting to overwrite file %s" % [plugin.name, dest_file])
 				is_exists = true
 		if is_exists:
-			logger.warn("Installation of %s terminated to avoid overwriting user files, you may disable safe mode with command \"force\"" % plugin.name)
+			logger.warn(
+				"Installation of %s terminated to avoid overwriting user files, you may disable safe mode with command \"force\""
+				% plugin.name
+			)
 			return ERR_ALREADY_EXISTS
 
 	logger.info("Installing files for %s..." % plugin.name)
@@ -573,7 +611,7 @@ func install(plugin):
 	logger.info("Installed %d file%s for %s" % [dest_files.size(), "s" if dest_files.size() > 1 else "", plugin.name])
 	if plugin.name != "gd-plug":
 		set_installed_plugin(plugin)
-	
+
 	logger.debug("Execute \"_on_updated\" function for %s" % plugin.name)
 	_on_updated(plugin.duplicate())
 	if plugin.on_updated:
@@ -584,15 +622,22 @@ func install(plugin):
 	emit_signal("updated", plugin.duplicate())
 	return OK
 
+
 func uninstall(plugin):
 	var test = !OS.get_environment(ENV_TEST).is_empty()
 	var keep_import_file = !OS.get_environment(ENV_KEEP_IMPORT_FILE).is_empty()
 	var keep_import_resource_file = !OS.get_environment(ENV_KEEP_IMPORT_RESOURCE_FILE).is_empty()
 	var dest_files = plugin.get("dest_files", [])
-	logger.info("Uninstalling %d file%s for %s..." % [dest_files.size(), "s" if dest_files.size() > 1 else "",plugin.name])
-	directory_remove_batch(dest_files, {"test": test, "keep_import_file": keep_import_file, "keep_import_resource_file": keep_import_resource_file})
-	logger.info("Uninstalled %d file%s for %s" % [dest_files.size(), "s" if dest_files.size() > 1 else "",plugin.name])
+	logger.info(
+		"Uninstalling %d file%s for %s..." % [dest_files.size(), "s" if dest_files.size() > 1 else "", plugin.name]
+	)
+	directory_remove_batch(
+		dest_files,
+		{ "test": test, "keep_import_file": keep_import_file, "keep_import_resource_file": keep_import_resource_file },
+	)
+	logger.info("Uninstalled %d file%s for %s" % [dest_files.size(), "s" if dest_files.size() > 1 else "", plugin.name])
 	remove_installed_plugin(plugin.name)
+
 
 func is_plugin_downloaded(plugin):
 	if not project_dir.dir_exists(plugin.plug_dir + "/.git"):
@@ -600,6 +645,7 @@ func is_plugin_downloaded(plugin):
 
 	var git = _GitExecutable.new(ProjectSettings.globalize_path(plugin.plug_dir), logger)
 	return git.is_up_to_date(plugin)
+
 
 # Get installed plugin, thread safe
 func get_installed_plugin(plugin_name):
@@ -609,12 +655,14 @@ func get_installed_plugin(plugin_name):
 	_mutex.unlock()
 	return installed_plugin
 
+
 # Set installed plugin, thread safe
 func set_installed_plugin(plugin):
 	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
 	_mutex.lock()
 	_installed_plugins[plugin.name] = plugin
 	_mutex.unlock()
+
 
 # Remove installed plugin, thread safe
 func remove_installed_plugin(plugin_name):
@@ -624,7 +672,8 @@ func remove_installed_plugin(plugin_name):
 	_mutex.unlock()
 	return result
 
-func directory_copy_recursively(from, to, args={}):
+
+func directory_copy_recursively(from, to, args = { }):
 	var include = args.get("include", [])
 	var exclude = args.get("exclude", [])
 	var test = args.get("test", false)
@@ -642,7 +691,7 @@ func directory_copy_recursively(from, to, args={}):
 			var relative_to_root = source.trim_prefix(root_from)
 			if relative_to_root.begins_with("/"):
 				relative_to_root = relative_to_root.substr(1)
-			
+
 			var dest
 			if strip_prefix.is_empty():
 				dest = to + ("/" if to != "res://" else "") + file_name
@@ -658,7 +707,7 @@ func directory_copy_recursively(from, to, args={}):
 					if relative_dest.begins_with(strip_prefix):
 						relative_dest = relative_dest.substr(strip_prefix.length())
 					dest = to + ("/" if to != "res://" else "") + relative_dest
-			
+
 			if dir.current_is_dir():
 				dest_files += directory_copy_recursively(source, dest, args)
 			else:
@@ -671,7 +720,8 @@ func directory_copy_recursively(from, to, args={}):
 								break
 						if not is_excluded:
 							if test:
-								if not silent_test: logger.warn("[TEST] Writing to %s" % dest)
+								if not silent_test:
+									logger.warn("[TEST] Writing to %s" % dest)
 							else:
 								dir.make_dir_recursive(dest.get_base_dir())
 								if dir.copy(source, dest) == OK:
@@ -682,10 +732,11 @@ func directory_copy_recursively(from, to, args={}):
 		dir.list_dir_end()
 	else:
 		logger.error("Failed to access path: %s" % from)
-	
+
 	return dest_files
 
-func directory_delete_recursively(dir_path, args={}):
+
+func directory_delete_recursively(dir_path, args = { }):
 	var remove_empty_directory = args.get("remove_empty_directory", true)
 	var exclude = args.get("exclude", [])
 	var test = args.get("test", false)
@@ -697,12 +748,13 @@ func directory_delete_recursively(dir_path, args={}):
 		var file_name = dir.get_next()
 		while not file_name.is_empty():
 			var source = dir.get_current_dir() + ("/" if dir.get_current_dir() != "res://" else "") + file_name
-			
+
 			if dir.current_is_dir():
 				var sub_dir = directory_delete_recursively(source, args)
 				if remove_empty_directory:
 					if test:
-						if not silent_test: logger.warn("[TEST] Remove empty directory: %s" % sub_dir.get_current_dir())
+						if not silent_test:
+							logger.warn("[TEST] Remove empty directory: %s" % sub_dir.get_current_dir())
 					else:
 						if source.get_file() == ".git":
 							var empty_dir_path = ProjectSettings.globalize_path(source)
@@ -734,7 +786,8 @@ func directory_delete_recursively(dir_path, args={}):
 						break
 				if not excluded:
 					if test:
-						if not silent_test: logger.warn("[TEST] Remove file: %s" % source)
+						if not silent_test:
+							logger.warn("[TEST] Remove file: %s" % source)
 					else:
 						if dir.remove(file_name) == OK:
 							logger.debug("Remove file: %s" % source)
@@ -748,18 +801,19 @@ func directory_delete_recursively(dir_path, args={}):
 
 	return dir
 
-func directory_remove_batch(files, args={}):
+
+func directory_remove_batch(files, args = { }):
 	var remove_empty_directory = args.get("remove_empty_directory", true)
 	var keep_import_file = args.get("keep_import_file", false)
 	var keep_import_resource_file = args.get("keep_import_resource_file", false)
 	var test = args.get("test", false)
 	var silent_test = args.get("silent_test", false)
-	var dirs = {}
+	var dirs = { }
 	for file in files:
 		var file_dir = file.get_base_dir()
-		var file_name =file.get_file()
+		var file_name = file.get_file()
 		var dir = dirs.get(file_dir)
-		
+
 		if not dir:
 			dir = DirAccess.open(file_dir)
 			dirs[file_dir] = dir
@@ -769,17 +823,19 @@ func directory_remove_batch(files, args={}):
 				_remove_import_file(dir, file, keep_import_resource_file, test, silent_test)
 		else:
 			if test:
-				if not silent_test: logger.warn("[TEST] Remove file: " + file)
+				if not silent_test:
+					logger.warn("[TEST] Remove file: " + file)
 			else:
 				if dir.remove(file_name) == OK:
 					logger.debug("Remove file: " + file)
 			if not keep_import_file:
 				_remove_import_file(dir, file + ".import", keep_import_resource_file, test, silent_test)
-		
+
 	for dir in dirs.values():
 		var slash_count = dir.get_current_dir().count("/") - 2 # Deduct 2 slash from "res://"
 		if test:
-			if not silent_test: logger.warn("[TEST] Remove empty directory: %s" % dir.get_current_dir())
+			if not silent_test:
+				logger.warn("[TEST] Remove empty directory: %s" % dir.get_current_dir())
 		else:
 			if dir.remove(dir.get_current_dir()) == OK:
 				logger.debug("Remove empty directory: %s" % dir.get_current_dir())
@@ -791,19 +847,21 @@ func directory_remove_batch(files, args={}):
 			var d = DirAccess.open(current_dir)
 			if DirAccess.get_open_error() == OK:
 				if test:
-					if not silent_test: logger.warn("[TEST] Remove empty ancestor directory: %s" % d.get_current_dir())
+					if not silent_test:
+						logger.warn("[TEST] Remove empty ancestor directory: %s" % d.get_current_dir())
 				else:
 					if d.remove(d.get_current_dir()) == OK:
 						logger.debug("Remove empty ancestor directory: %s" % d.get_current_dir())
 
-func _remove_import_file(dir, file, keep_import_resource_file=false, test=false, silent_test=false):
+
+func _remove_import_file(dir, file, keep_import_resource_file = false, test = false, silent_test = false):
 	if not dir.file_exists(file):
 		return
 
 	if not keep_import_resource_file:
 		var import_config = ConfigFile.new()
 		if import_config.load(file) == OK:
-			var metadata = import_config.get_value("remap", "metadata", {})
+			var metadata = import_config.get_value("remap", "metadata", { })
 			var imported_formats = metadata.get("imported_formats", [])
 			if imported_formats:
 				for format in imported_formats:
@@ -811,7 +869,8 @@ func _remove_import_file(dir, file, keep_import_resource_file=false, test=false,
 			else:
 				_remove_import_resource_file(dir, import_config, "", test)
 	if test:
-		if not silent_test: logger.warn("[TEST] Remove import file: " + file)
+		if not silent_test:
+			logger.warn("[TEST] Remove import file: " + file)
 	else:
 		if dir.remove(file) == OK:
 			logger.debug("Remove import file: " + file)
@@ -820,7 +879,8 @@ func _remove_import_file(dir, file, keep_import_resource_file=false, test=false,
 			# Maybe enforce the removal from shell?
 			logger.warn("Failed to remove import file: " + file)
 
-func _remove_import_resource_file(dir, import_config, import_format="", test=false):
+
+func _remove_import_resource_file(dir, import_config, import_format = "", test = false):
 	var import_resource_file = import_config.get_value("remap", "path" + import_format, "")
 	var checksum_file = import_resource_file.trim_suffix("." + import_resource_file.get_extension()) + ".md5" if import_resource_file else ""
 	if import_resource_file:
@@ -839,6 +899,7 @@ func _remove_import_resource_file(dir, import_config, import_format="", test=fal
 				if dir.remove(checksum_file) == OK:
 					logger.debug("Remove import checksum file: " + checksum_file)
 
+
 func compare_plugins(p1, p2):
 	var changed_keys = []
 	for key in p1.keys():
@@ -848,9 +909,11 @@ func compare_plugins(p1, p2):
 			changed_keys.append(key)
 	return changed_keys
 
+
 func get_plugin_name_from_repo(repo):
 	repo = repo.replace(".git", "").trim_suffix("/")
 	return repo.get_file()
+
 
 func validate_var_type(obj, var_name, type, type_string):
 	var value = obj.get(var_name)
@@ -859,8 +922,8 @@ func validate_var_type(obj, var_name, type, type_string):
 		logger.error("Expected variable \"%s\" to be %s, given %s" % [var_name, type_string, value])
 	return is_valid
 
-const INIT_PLUG_SCRIPT = \
-"""extends "res://addons/gd-plug/plug.gd"
+
+const INIT_PLUG_SCRIPT = """extends "res://addons/gd-plug/plug.gd"
 
 func _plugging():
 	# Declare plugins with plug(repo, args)
@@ -871,15 +934,18 @@ func _plugging():
 	pass
 """
 
+
 class _GitExecutable extends RefCounted:
 	var cwd = ""
 	var logger
+
 
 	func _init(p_cwd, p_logger):
 		cwd = p_cwd
 		logger = p_logger
 
-	func _execute(command, output=[], read_stderr=false):
+
+	func _execute(command, output = [], read_stderr = false):
 		var cmd = "cd '%s' && %s" % [cwd, command]
 		# NOTE: OS.execute() seems to ignore read_stderr
 		var exit = FAILED
@@ -898,14 +964,16 @@ class _GitExecutable extends RefCounted:
 		logger.debug("Execution ended(code:%d): %s" % [exit, output])
 		return exit
 
+
 	func init():
 		logger.debug("Initializing git at %s..." % cwd)
 		var output = []
 		var exit = _execute("git init", output)
 		logger.debug("Successfully init" if exit == OK else "Failed to init")
-		return {"exit": exit, "output": output}
+		return { "exit": exit, "output": output }
 
-	func clone(src, dest, args={}):
+
+	func clone(src, dest, args = { }):
 		logger.debug("Cloning from %s to %s..." % [src, dest])
 		var output = []
 		var branch = args.get("branch", "")
@@ -913,18 +981,23 @@ class _GitExecutable extends RefCounted:
 		var commit = args.get("commit", "")
 		var command = "git clone --depth=1 --progress '%s' '%s'" % [src, dest]
 		if branch or tag:
-			command = "git clone --depth=1 --single-branch --branch %s '%s' '%s'" % [branch if branch else tag, src, dest]
+			command = "git clone --depth=1 --single-branch --branch %s '%s' '%s'" % [
+				branch if branch else tag,
+				src,
+				dest,
+			]
 		elif commit:
 			return clone_commit(src, dest, commit)
 		var exit = _execute(command, output)
 		logger.debug("Successfully cloned from %s" % src if exit == OK else "Failed to clone from %s" % src)
-		return {"exit": exit, "output": output}
+		return { "exit": exit, "output": output }
+
 
 	func clone_commit(src, dest, commit):
 		var output = []
 		if commit.length() < 40:
 			logger.error("Expected full length 40 digits commit-hash to clone specific commit, given {%s}" % commit)
-			return {"exit": FAILED, "output": output}
+			return { "exit": FAILED, "output": output }
 
 		logger.debug("Cloning from %s to %s @ %s..." % [src, dest, commit])
 		var result = init()
@@ -936,33 +1009,38 @@ class _GitExecutable extends RefCounted:
 					result = reset("--hard", "FETCH_HEAD")
 		return result
 
-	func fetch(rm="--all"):
+
+	func fetch(rm = "--all"):
 		logger.debug("Fetching %s..." % rm.replace("--", ""))
 		var output = []
 		var exit = _execute("git fetch %s" % rm, output)
 		logger.debug("Successfully fetched" if exit == OK else "Failed to fetch")
-		return {"exit": exit, "output": output}
+		return { "exit": exit, "output": output }
+
 
 	func pull():
 		logger.debug("Pulling...")
 		var output = []
 		var exit = _execute("git pull --rebase", output)
 		logger.debug("Successfully pulled" if exit == OK else "Failed to pull")
-		return {"exit": exit, "output": output}
+		return { "exit": exit, "output": output }
+
 
 	func remote_add(name, src):
 		logger.debug("Adding remote %s@%s..." % [name, src])
 		var output = []
 		var exit = _execute("git remote add %s '%s'" % [name, src], output)
 		logger.debug("Successfully added remote" if exit == OK else "Failed to add remote")
-		return {"exit": exit, "output": output}
+		return { "exit": exit, "output": output }
+
 
 	func reset(mode, to):
 		logger.debug("Resetting %s %s..." % [mode, to])
 		var output = []
 		var exit = _execute("git reset %s %s" % [mode, to], output)
 		logger.debug("Successfully reset" if exit == OK else "Failed to reset")
-		return {"exit": exit, "output": output}
+		return { "exit": exit, "output": output }
+
 
 	func get_commit_comparison(branch_a, branch_b):
 		var output = []
@@ -973,32 +1051,37 @@ class _GitExecutable extends RefCounted:
 			ahead_behind.append(msg.to_int())
 		return ahead_behind if exit == OK else []
 
+
 	func get_current_branch():
 		var output = []
 		var exit = _execute("git rev-parse --abbrev-ref HEAD", output)
 		return output[0] if exit == OK else ""
+
 
 	func get_current_tag():
 		var output = []
 		var exit = _execute("git describe --tags --exact-match", output)
 		return output[0] if exit == OK else ""
 
+
 	func get_current_commit():
 		var output = []
 		var exit = _execute("git rev-parse --short HEAD", output)
 		return output[0] if exit == OK else ""
+
 
 	func is_detached_head():
 		var output = []
 		var exit = _execute("git rev-parse --short HEAD", output)
 		return (!!output[0]) if exit == OK else true
 
-	func is_up_to_date(args={}):
+
+	func is_up_to_date(args = { }):
 		if fetch().exit == OK:
 			var branch = args.get("branch", "")
 			var tag = args.get("tag", "")
 			var commit = args.get("commit", "")
-	
+
 			if branch:
 				if branch == get_current_branch():
 					return FAILED if is_detached_head() else OK
@@ -1008,11 +1091,12 @@ class _GitExecutable extends RefCounted:
 			elif commit:
 				if commit == get_current_commit():
 					return OK
-	
+
 			var ahead_behind = get_commit_comparison("HEAD", "origin")
 			var is_commit_behind = !!ahead_behind[1] if ahead_behind.size() == 2 else false
 			return FAILED if is_commit_behind else OK
 		return FAILED
+
 
 class _ThreadPool extends RefCounted:
 	signal all_thread_finished()
@@ -1025,9 +1109,11 @@ class _ThreadPool extends RefCounted:
 	var _tasks = []
 	var logger
 
+
 	func _init(p_logger):
 		logger = p_logger
 		_threads.resize(OS.get_processor_count())
+
 
 	func _execute_task(task):
 		var thread = _get_thread()
@@ -1038,6 +1124,7 @@ class _ThreadPool extends RefCounted:
 			thread.start(_execute.bind(task), task.priority)
 			logger.debug("Execute task %s.%s() " % [callable.get_object(), callable.get_method()])
 		return can_execute
+
 
 	func _execute(args):
 		var callable = args.get("callable")
@@ -1054,6 +1141,7 @@ class _ThreadPool extends RefCounted:
 			logger.debug("All thread finished")
 			emit_signal("all_thread_finished")
 
+
 	func _flush_tasks():
 		if _tasks.size() == 0:
 			return
@@ -1068,14 +1156,17 @@ class _ThreadPool extends RefCounted:
 			else:
 				executed = false
 
+
 	func _flush_threads():
 		for i in _finished_threads.size():
 			var thread = _finished_threads.pop_front()
 			if not thread.is_alive():
 				thread.wait_to_finish()
 
-	func enqueue_task(callable, priority=1):
-		enqueue({"callable": callable, "priority": priority})
+
+	func enqueue_task(callable, priority = 1):
+		enqueue({ "callable": callable, "priority": priority })
+
 
 	func enqueue(task):
 		var can_execute = false
@@ -1084,14 +1175,17 @@ class _ThreadPool extends RefCounted:
 		if not can_execute:
 			_tasks.append(task)
 
+
 	func process(delta):
 		if active:
 			_flush_tasks()
 			_flush_threads()
 
+
 	func stop():
 		_tasks.clear()
 		_flush_threads()
+
 
 	func _get_thread():
 		var thread
@@ -1107,11 +1201,13 @@ class _ThreadPool extends RefCounted:
 				break
 		return thread
 
+
 	func is_all_thread_finished():
 		for i in _threads.size():
 			if _threads[i]:
 				return false
 		return true
+
 
 	func is_all_task_finished():
 		for i in _tasks.size():
@@ -1119,13 +1215,19 @@ class _ThreadPool extends RefCounted:
 				return false
 		return true
 
+
 class _Logger extends RefCounted:
 	enum LogLevel {
-		ALL, DEBUG, INFO, WARN, ERROR, NONE
+		ALL,
+		DEBUG,
+		INFO,
+		WARN,
+		ERROR,
+		NONE,
 	}
 	const DEFAULT_LOG_FORMAT_DETAIL = "[{time}] [{level}] {msg}"
 	const DEFAULT_LOG_FORMAT_NORMAL = "{msg}"
-	
+
 	var log_level = LogLevel.INFO
 	var log_format = DEFAULT_LOG_FORMAT_NORMAL
 	var log_time_format = "{year}/{month}/{day} {hour}:{minute}:{second}"
@@ -1136,22 +1238,27 @@ class _Logger extends RefCounted:
 	var _max_column_length = []
 	var _max_column_size = 0
 
-	func debug(msg, raw=false):
+
+	func debug(msg, raw = false):
 		_log(LogLevel.DEBUG, msg, raw)
 
-	func info(msg, raw=false):
+
+	func info(msg, raw = false):
 		_log(LogLevel.INFO, msg, raw)
 
-	func warn(msg, raw=false):
+
+	func warn(msg, raw = false):
 		_log(LogLevel.WARN, msg, raw)
 
-	func error(msg, raw=false):
+
+	func error(msg, raw = false):
 		_log(LogLevel.ERROR, msg, raw)
 
-	func _log(level, msg, raw=false):
+
+	func _log(level, msg, raw = false):
 		if is_locked:
 			return
-		
+
 		if typeof(msg) != TYPE_STRING:
 			msg = str(msg)
 		if log_level <= level:
@@ -1166,28 +1273,37 @@ class _Logger extends RefCounted:
 					else:
 						print(format_log(level, msg))
 
+
 	func format_log(level, msg):
-		return log_format.format({
-			"time": log_time_format.format(get_formatted_datatime()),
-			"level": LogLevel.keys()[level],
-			"msg": msg.indent("    ".repeat(indent_level))
-		})
+		return log_format.format(
+			{
+				"time": log_time_format.format(get_formatted_datatime()),
+				"level": LogLevel.keys()[level],
+				"msg": msg.indent("    ".repeat(indent_level)),
+			}
+		)
+
 
 	func indent():
 		indent_level += 1
-	
+
+
 	func dedent():
 		indent_level -= 1
 		max(indent_level, 0)
-	
+
+
 	func lock():
 		is_locked = true
-	
+
+
 	func unlock():
 		is_locked = false
 
+
 	func table_start():
 		_rows = []
+
 
 	func table_end():
 		assert(_rows != null, "Expected table_start() to be called first")
@@ -1203,13 +1319,14 @@ class _Logger extends RefCounted:
 				else:
 					text += column
 			info(text)
-		
+
 		_rows.clear()
 		_rows = null
 		_max_column_length.clear()
 		_max_column_size = 0
-	
-	func table_row(columns=[]):
+
+
+	func table_row(columns = []):
 		assert(_rows != null, "Expected table_start() to be called first")
 		_rows.append(columns)
 		_max_column_size = max(_max_column_size, columns.size())
@@ -1220,7 +1337,8 @@ class _Logger extends RefCounted:
 				_max_column_length[i] = max(max_column_length, column.length())
 			else:
 				_max_column_length.append(column.length())
-	
+
+
 	func get_formatted_datatime():
 		var datetime = Time.get_datetime_dict_from_system()
 		datetime.year = "%04d" % datetime.year
