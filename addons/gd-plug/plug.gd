@@ -35,7 +35,7 @@ signal updated(plugin: Dictionary)
 
 #region Constants
 ## Version von gd-plug, wird vom Befehl "version" ausgegeben.
-const VERSION: String = "0.2.6"
+const VERSION: String = "0.3.0"
 ## URL-Vorlage für Kurzangaben der Form "user/repo"; [code]%s[/code] wird durch die Kurzangabe ersetzt.
 const DEFAULT_PLUGIN_URL: String = "https://git::@github.com/%s.git"
 ## Verzeichnis, in das die Plugin-Repositories geklont werden.
