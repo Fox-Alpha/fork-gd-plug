@@ -644,7 +644,7 @@ func uninstall(plugin):
 
 func is_plugin_downloaded(plugin):
 	if not project_dir.dir_exists(plugin.plug_dir + "/.git"):
-		return
+		return ERR_DOES_NOT_EXIST
 
 	var git = _GitExecutable.new(ProjectSettings.globalize_path(plugin.plug_dir), logger)
 	return git.is_up_to_date(plugin)
@@ -1058,25 +1058,25 @@ class _GitExecutable extends RefCounted:
 	func get_current_branch():
 		var output = []
 		var exit = _execute("git rev-parse --abbrev-ref HEAD", output)
-		return output[0] if exit == OK else ""
+		return output[0].strip_edges() if exit == OK and output.size() > 0 else ""
 
 
 	func get_current_tag():
 		var output = []
 		var exit = _execute("git describe --tags --exact-match", output)
-		return output[0] if exit == OK else ""
+		return output[0].strip_edges() if exit == OK and output.size() > 0 else ""
 
 
 	func get_current_commit():
 		var output = []
-		var exit = _execute("git rev-parse --short HEAD", output)
-		return output[0] if exit == OK else ""
+		# Voller Hash, plug() verlangt den Commit mit 40 Zeichen
+		var exit = _execute("git rev-parse HEAD", output)
+		return output[0].strip_edges() if exit == OK and output.size() > 0 else ""
 
 
 	func is_detached_head():
-		var output = []
-		var exit = _execute("git rev-parse --short HEAD", output)
-		return (!!output[0]) if exit == OK else true
+		# symbolic-ref scheitert nur, wenn HEAD auf keinen Branch zeigt
+		return _execute("git symbolic-ref -q HEAD") != OK
 
 
 	func is_up_to_date(args = { }):
@@ -1086,8 +1086,9 @@ class _GitExecutable extends RefCounted:
 			var commit = args.get("commit", "")
 
 			if branch:
-				if branch == get_current_branch():
-					return FAILED if is_detached_head() else OK
+				# Falscher Branch: neu klonen. Richtiger Branch: unten auf neue Commits prüfen
+				if branch != get_current_branch() or is_detached_head():
+					return FAILED
 			elif tag:
 				if tag == get_current_tag():
 					return OK
@@ -1095,7 +1096,7 @@ class _GitExecutable extends RefCounted:
 				if commit == get_current_commit():
 					return OK
 
-			var ahead_behind = get_commit_comparison("HEAD", "origin")
+			var ahead_behind = get_commit_comparison("HEAD", "origin/" + branch if branch else "origin")
 			var is_commit_behind = !!ahead_behind[1] if ahead_behind.size() == 2 else false
 			return FAILED if is_commit_behind else OK
 		return FAILED
