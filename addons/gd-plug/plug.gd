@@ -31,7 +31,6 @@ var logger = _Logger.new()
 var _installed_plugins
 var _plugged_plugins = { }
 
-var _threads = []
 var _mutex = Mutex.new()
 var _start_time = 0
 var threadpool = _ThreadPool.new(logger)
@@ -462,7 +461,6 @@ func plug(repo, args = { }):
 
 
 func install_plugin(plugin):
-	var test = !OS.get_environment(ENV_TEST).is_empty()
 	var can_install = OS.get_environment(ENV_PRODUCTION).is_empty() if plugin.dev else true
 	if can_install:
 		logger.info("Installing plugin %s..." % plugin.name)
