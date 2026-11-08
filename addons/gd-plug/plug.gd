@@ -105,7 +105,7 @@ func _initialize():
 				logger.error("Unknown command %s" % args[0])
 				show_syntax()
 	# NOTE: Do no put anything after this line except request_quit(), as _plug_*() may call request_quit()
-	request_quit(0)
+	request_quit()
 
 
 func show_syntax():
@@ -205,6 +205,9 @@ func _plugging():
 
 func request_quit(exit_code = -1):
 	if threadpool.is_all_thread_finished() and threadpool.is_all_task_finished():
+		# Ohne ausdrücklichen Code: 1, sobald ein Fehler gemeldet wurde, sonst 0
+		if exit_code == -1:
+			exit_code = 1 if logger.error_count > 0 else 0
 		quit(exit_code)
 		return true
 	logger.debug("Request quit declined, threadpool is still running")
@@ -1233,6 +1236,8 @@ class _Logger extends RefCounted:
 	var log_time_format = "{year}/{month}/{day} {hour}:{minute}:{second}"
 	var indent_level = 0
 	var is_locked = false
+	# Anzahl gemeldeter Fehler, bestimmt den Exit-Code von gd-plug
+	var error_count = 0
 
 	var _rows
 	var _max_column_length = []
@@ -1252,6 +1257,7 @@ class _Logger extends RefCounted:
 
 
 	func error(msg, raw = false):
+		error_count += 1
 		_log(LogLevel.ERROR, msg, raw)
 
 
