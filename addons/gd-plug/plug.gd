@@ -768,7 +768,7 @@ func directory_delete_recursively(dir_path, args = { }):
 									empty_dir_path = empty_dir_path.replace("/", "\\")
 									var cmd = "rd /s /q %s" % empty_dir_path
 									exit = OS.execute("cmd", ["/C", cmd])
-								"X11", "OSX", "Server":
+								"macOS", "Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD":
 									empty_dir_path = "\'%s\'" % empty_dir_path
 									var cmd = "rm -rf %s" % empty_dir_path
 									exit = OS.execute("bash", ["-c", cmd])
