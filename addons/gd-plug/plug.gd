@@ -70,13 +70,20 @@ const ENV_UPGRADE_BRANCH: String = "GD_PLUG_UPGRADE_BRANCH"
 const MSG_PLUG_START_ASSERTION: String = "_plug_start() must be called first"
 ## Inhalt der plug.gd, die der Befehl "init" im Projekt anlegt.
 const INIT_PLUG_SCRIPT: String = """extends "res://addons/gd-plug/plug.gd"
+## Plugins of this project, managed by gd-plug.
+##
+## Install or update: [code]godot --headless -s plug.gd install[/code][br]
+## More commands: [code]godot --headless -s plug.gd help[/code]
 
-func _plugging():
-	# Declare plugins with plug(repo, args)
-	# For example, clone from github repo("user/repo_name")
-	# plug("imjp94/gd-YAFSM") # By default, gd-plug will only install anything from "addons/" directory
-	# Or you can explicitly specify which file/directory to include
-	# plug("imjp94/gd-YAFSM", {"include": ["addons/"]}) # By default, gd-plug will only install anything from "addons/" directory
+
+## Declares the plugins with [code]plug(repo, args)[/code].
+func _plugging() -> void:
+	# By default, only the "addons/" directory of a repository is installed:
+	#plug("bitwes/Gut")
+	# Freeze to a tag, branch or commit:
+	#plug("bitwes/Gut", {"tag": "v9.4.0"})
+	# Addon nested in another directory (stripped automatically with install_root):
+	#plug("hi-godot/godot-ai", {"install_root": "addons/godot_ai", "include": ["plugin/addons/godot_ai/"]})
 	pass
 """
 #endregion
