@@ -1,41 +1,61 @@
 @tool
 extends SceneTree
 
+#region Signals
 signal updated(plugin)
+#endregion
 
+#region Constants
 const VERSION = "0.2.6"
 const DEFAULT_PLUGIN_URL = "https://git::@github.com/%s.git"
 const DEFAULT_PLUG_DIR = "res://.plugged"
 const DEFAULT_CONFIG_PATH = DEFAULT_PLUG_DIR + "/index.cfg"
 const DEFAULT_USER_PLUG_SCRIPT_PATH = "res://plug.gd"
 const DEFAULT_BASE_PLUG_SCRIPT_PATH = "res://addons/gd-plug/plug.gd"
-
 const ENV_PRODUCTION = "production"
 const ENV_TEST = "test"
 const ENV_FORCE = "force"
 const ENV_KEEP_IMPORT_FILE = "keep_import_file"
 const ENV_KEEP_IMPORT_RESOURCE_FILE = "keep_import_resource_file"
+
 # Quelle für den Befehl "upgrade": eigener Fork statt imjp94/gd-plug, damit die Änderungen des Forks erhalten bleiben
 const DEFAULT_UPGRADE_REPO = "Fox-Alpha/fork-gd-plug"
+
 const DEFAULT_UPGRADE_BRANCH = "development"
+
 # Umgebungsvariablen zum Überschreiben von Repo und Branch beim Aufruf von "upgrade"
 const ENV_UPGRADE_REPO = "GD_PLUG_UPGRADE_REPO"
+
 const ENV_UPGRADE_BRANCH = "GD_PLUG_UPGRADE_BRANCH"
-
 const MSG_PLUG_START_ASSERTION = "_plug_start() must be called first"
+const INIT_PLUG_SCRIPT = """extends "res://addons/gd-plug/plug.gd"
 
+func _plugging():
+	# Declare plugins with plug(repo, args)
+	# For example, clone from github repo("user/repo_name")
+	# plug("imjp94/gd-YAFSM") # By default, gd-plug will only install anything from "addons/" directory
+	# Or you can explicitly specify which file/directory to include
+	# plug("imjp94/gd-YAFSM", {"include": ["addons/"]}) # By default, gd-plug will only install anything from "addons/" directory
+	pass
+"""
+#endregion
+
+#region Public Vars
 var project_dir
 var installation_config = ConfigFile.new()
 var logger = _Logger.new()
+var threadpool = _ThreadPool.new(logger)
+#endregion
 
+#region Private Vars
 var _installed_plugins
 var _plugged_plugins = { }
-
 var _mutex = Mutex.new()
 var _start_time = 0
-var threadpool = _ThreadPool.new(logger)
+#endregion
 
 
+#region Lifecycle
 func _init():
 	threadpool.connect("all_thread_finished", request_quit)
 	project_dir = DirAccess.open("res://")
@@ -105,6 +125,27 @@ func _initialize():
 				show_syntax()
 	# NOTE: Do no put anything after this line except request_quit(), as _plug_*() may call request_quit()
 	request_quit()
+
+
+func _process(delta):
+	threadpool.process(delta)
+	return false # Must return false, unless we are terminating.
+
+
+func _finalize():
+	_plug_end()
+	threadpool.stop()
+	logger.info("Finished, elapsed %.3fs" % ((Time.get_ticks_msec() - _start_time) / 1000.0))
+#endregion
+
+
+#region Public Funcs
+func _plugging():
+	pass
+
+
+func _on_updated(plugin):
+	pass
 
 
 func show_syntax():
@@ -183,25 +224,6 @@ func show_config_syntax():
 	logger.info("")
 
 
-func _process(delta):
-	threadpool.process(delta)
-	return false # Must return false, unless we are terminating.
-
-
-func _finalize():
-	_plug_end()
-	threadpool.stop()
-	logger.info("Finished, elapsed %.3fs" % ((Time.get_ticks_msec() - _start_time) / 1000.0))
-
-
-func _on_updated(plugin):
-	pass
-
-
-func _plugging():
-	pass
-
-
 func request_quit(exit_code = -1):
 	if threadpool.is_all_thread_finished() and threadpool.is_all_task_finished():
 		# Ohne ausdrücklichen Code: 1, sobald ein Fehler gemeldet wurde, sonst 0
@@ -211,202 +233,6 @@ func request_quit(exit_code = -1):
 		return true
 	logger.debug("Request quit declined, threadpool is still running")
 	return false
-
-
-# Index installed plugins, or create directory "plugged" if not exists
-func _plug_start():
-	logger.debug("Plug start")
-	if not project_dir.dir_exists(DEFAULT_PLUG_DIR):
-		if project_dir.make_dir(ProjectSettings.globalize_path(DEFAULT_PLUG_DIR)) == OK:
-			logger.debug("Make dir %s for plugin installation" % DEFAULT_PLUG_DIR)
-	if installation_config.load(DEFAULT_CONFIG_PATH) == OK:
-		logger.debug("Installation config loaded")
-	else:
-		logger.debug("Installation config not found")
-	_installed_plugins = installation_config.get_value("plugin", "installed", { })
-
-
-# Install plugin or uninstall plugin if unlisted
-func _plug_end():
-	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
-	var test = !OS.get_environment(ENV_TEST).is_empty()
-	if not test:
-		installation_config.set_value("plugin", "installed", _installed_plugins)
-		if installation_config.save(DEFAULT_CONFIG_PATH) == OK:
-			logger.debug("Plugged config saved")
-		else:
-			logger.error("Failed to save plugged config")
-	else:
-		logger.warn("Skipped saving of plugged config in test mode")
-	_installed_plugins = null
-
-
-func _plug_init():
-	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
-	logger.info("Init gd-plug...")
-	if FileAccess.file_exists(DEFAULT_USER_PLUG_SCRIPT_PATH):
-		logger.warn("%s already exists!" % DEFAULT_USER_PLUG_SCRIPT_PATH)
-	else:
-		var file = FileAccess.open(DEFAULT_USER_PLUG_SCRIPT_PATH, FileAccess.WRITE)
-		file.store_string(INIT_PLUG_SCRIPT)
-		file.close()
-		logger.info("Created %s" % DEFAULT_USER_PLUG_SCRIPT_PATH)
-
-
-func _plug_install():
-	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
-	threadpool.active = false
-	logger.info("Installing...")
-	for plugin in _plugged_plugins.values():
-		var installed = plugin.name in _installed_plugins
-		if installed:
-			var installed_plugin = get_installed_plugin(plugin.name)
-			if (installed_plugin.dev or plugin.dev) and OS.get_environment(ENV_PRODUCTION):
-				logger.info("Remove dev plugin for production: %s" % plugin.name)
-				threadpool.enqueue_task(uninstall_plugin.bind(installed_plugin))
-			else:
-				threadpool.enqueue_task(update_plugin.bind(plugin))
-		else:
-			threadpool.enqueue_task(install_plugin.bind(plugin))
-
-	var removed_plugins = []
-	for plugin in _installed_plugins.values():
-		var removed = not (plugin.name in _plugged_plugins)
-		if removed:
-			removed_plugins.append(plugin)
-	if removed_plugins:
-		threadpool.disconnect("all_thread_finished", request_quit)
-		if not threadpool.is_all_thread_finished():
-			threadpool.active = true
-			await threadpool.all_thread_finished
-			threadpool.active = false
-			logger.debug("All installation finished! Ready to uninstall removed plugins...")
-		threadpool.connect("all_thread_finished", request_quit)
-		for plugin in removed_plugins:
-			threadpool.enqueue_task(uninstall_plugin.bind(plugin), Thread.PRIORITY_LOW)
-	threadpool.active = true
-
-
-func _plug_uninstall():
-	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
-	threadpool.active = false
-	logger.info("Uninstalling...")
-	for plugin in _installed_plugins.values():
-		var installed_plugin = get_installed_plugin(plugin.name)
-		threadpool.enqueue_task(uninstall_plugin.bind(installed_plugin), Thread.PRIORITY_LOW)
-	threadpool.active = true
-
-
-func _plug_clean():
-	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
-	threadpool.active = false
-	logger.info("Cleaning...")
-	var plugged_dir = DirAccess.open(DEFAULT_PLUG_DIR)
-	plugged_dir.include_hidden = true
-	plugged_dir.list_dir_begin() # TODOGODOT4 fill missing arguments https://github.com/godotengine/godot/pull/40547
-	var file = plugged_dir.get_next()
-	while not file.is_empty():
-		if plugged_dir.current_is_dir():
-			if not (file in _installed_plugins):
-				logger.info("Remove %s" % file)
-				threadpool.enqueue_task(directory_delete_recursively.bind(plugged_dir.get_current_dir() + "/" + file))
-		file = plugged_dir.get_next()
-	plugged_dir.list_dir_end()
-	threadpool.active = true
-
-
-func _plug_upgrade():
-	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
-	threadpool.active = false
-	var upgrade_repo = OS.get_environment(ENV_UPGRADE_REPO).strip_edges()
-	if upgrade_repo.is_empty():
-		upgrade_repo = DEFAULT_UPGRADE_REPO
-	var upgrade_branch = OS.get_environment(ENV_UPGRADE_BRANCH).strip_edges()
-	if upgrade_branch.is_empty():
-		upgrade_branch = DEFAULT_UPGRADE_BRANCH
-	logger.info("Upgrading gd-plug from %s (branch %s)..." % [upgrade_repo, upgrade_branch])
-	plug(upgrade_repo, { "branch": upgrade_branch })
-	# Name aus dem Repo ableiten, beim Fork ist das "fork-gd-plug" statt "gd-plug"
-	var gd_plug = _plugged_plugins.get(get_plugin_name_from_repo(upgrade_repo))
-	if gd_plug == null:
-		logger.error("Failed to plug %s, upgrade aborted" % upgrade_repo)
-		return
-	# Stand gd-plug schon vorher im Index (über die plug.gd des Projekts), bleibt der Eintrag erhalten
-	var keep_in_index = gd_plug.name in _installed_plugins
-	OS.set_environment(ENV_FORCE, "true") # Required to overwrite res://addons/gd-plug/plug.gd
-	threadpool.enqueue_task(install_plugin.bind(gd_plug))
-	threadpool.disconnect("all_thread_finished", request_quit)
-	# Bei inaktivem Pool ist die Installation nur eingereiht, noch kein Thread läuft.
-	# Ohne Prüfung der Warteschlange liefe das Löschen von plug_dir parallel zum Klonen.
-	if not (threadpool.is_all_thread_finished() and threadpool.is_all_task_finished()):
-		threadpool.active = true
-		await threadpool.all_thread_finished
-		threadpool.active = false
-		logger.debug("All installation finished! Ready to uninstall removed plugins...")
-	# Sonst stünde gd-plug in index.cfg und das nächste "install" würde es als entfernt deinstallieren
-	if not keep_in_index:
-		_installed_plugins.erase(gd_plug.name)
-	threadpool.connect("all_thread_finished", request_quit)
-	threadpool.enqueue_task(directory_delete_recursively.bind(gd_plug.plug_dir))
-	threadpool.active = true
-
-
-func _plug_status():
-	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
-	threadpool.active = false
-	logger.info("Installed %d plugin%s" % [_installed_plugins.size(), "s" if _installed_plugins.size() > 1 else ""])
-	var new_plugins = _plugged_plugins.duplicate()
-	var has_checking_plugin = false
-	var removed_plugins = []
-	for plugin in _installed_plugins.values():
-		logger.info("- {name} - {url}".format(plugin))
-		new_plugins.erase(plugin.name)
-		var removed = not (plugin.name in _plugged_plugins)
-		if removed:
-			removed_plugins.append(plugin)
-		else:
-			threadpool.enqueue_task(check_plugin.bind(_plugged_plugins[plugin.name]))
-			has_checking_plugin = true
-	if has_checking_plugin:
-		logger.info("\n", true)
-		threadpool.disconnect("all_thread_finished", request_quit)
-		threadpool.active = true
-		await threadpool.all_thread_finished
-		threadpool.active = false
-		threadpool.connect("all_thread_finished", request_quit)
-		logger.debug("Finished checking plugins, ready to proceed")
-	if new_plugins:
-		logger.info("\nPlugged %d plugin%s" % [new_plugins.size(), "s" if new_plugins.size() > 1 else ""])
-		for plugin in new_plugins.values():
-			var is_new = not (plugin.name in _installed_plugins)
-			if is_new:
-				logger.info("- {name} - {url}".format(plugin))
-	if removed_plugins:
-		logger.info("\nUnplugged %d plugin%s" % [removed_plugins.size(), "s" if removed_plugins.size() > 1 else ""])
-		for plugin in removed_plugins:
-			logger.info("- %s removed" % plugin.name)
-	var plug_directory = DirAccess.open(DEFAULT_PLUG_DIR)
-	var orphan_dirs = []
-	if DirAccess.get_open_error() == OK:
-		plug_directory.list_dir_begin() # TODOGODOT4 fill missing arguments https://github.com/godotengine/godot/pull/40547
-		var file = plug_directory.get_next()
-		while not file.is_empty():
-			if plug_directory.current_is_dir():
-				if not (file in _installed_plugins):
-					orphan_dirs.append(file)
-			file = plug_directory.get_next()
-		plug_directory.list_dir_end()
-	if orphan_dirs:
-		logger.info(
-			"\nOrphan directory, %d found in %s, execute \"clean\" command to remove"
-			% [orphan_dirs.size(), DEFAULT_PLUG_DIR]
-		)
-		for dir in orphan_dirs:
-			logger.info("- %s" % dir)
-	threadpool.active = true
-
-	if has_checking_plugin:
-		request_quit()
 
 
 # Index & validate plugin
@@ -855,6 +681,227 @@ func directory_remove_batch(files, args = { }):
 						logger.debug("Remove empty ancestor directory: %s" % d.get_current_dir())
 
 
+func compare_plugins(p1, p2):
+	var changed_keys = []
+	for key in p1.keys():
+		var v1 = p1[key]
+		var v2 = p2[key]
+		if v1 != v2:
+			changed_keys.append(key)
+	return changed_keys
+
+
+func get_plugin_name_from_repo(repo):
+	repo = repo.replace(".git", "").trim_suffix("/")
+	return repo.get_file()
+
+
+func validate_var_type(obj, var_name, type, type_string):
+	var value = obj.get(var_name)
+	var is_valid = typeof(value) == type
+	if not is_valid:
+		logger.error("Expected variable \"%s\" to be %s, given %s" % [var_name, type_string, value])
+	return is_valid
+#endregion
+
+
+#region Private Funcs
+# Index installed plugins, or create directory "plugged" if not exists
+func _plug_start():
+	logger.debug("Plug start")
+	if not project_dir.dir_exists(DEFAULT_PLUG_DIR):
+		if project_dir.make_dir(ProjectSettings.globalize_path(DEFAULT_PLUG_DIR)) == OK:
+			logger.debug("Make dir %s for plugin installation" % DEFAULT_PLUG_DIR)
+	if installation_config.load(DEFAULT_CONFIG_PATH) == OK:
+		logger.debug("Installation config loaded")
+	else:
+		logger.debug("Installation config not found")
+	_installed_plugins = installation_config.get_value("plugin", "installed", { })
+
+
+# Install plugin or uninstall plugin if unlisted
+func _plug_end():
+	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
+	var test = !OS.get_environment(ENV_TEST).is_empty()
+	if not test:
+		installation_config.set_value("plugin", "installed", _installed_plugins)
+		if installation_config.save(DEFAULT_CONFIG_PATH) == OK:
+			logger.debug("Plugged config saved")
+		else:
+			logger.error("Failed to save plugged config")
+	else:
+		logger.warn("Skipped saving of plugged config in test mode")
+	_installed_plugins = null
+
+
+func _plug_init():
+	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
+	logger.info("Init gd-plug...")
+	if FileAccess.file_exists(DEFAULT_USER_PLUG_SCRIPT_PATH):
+		logger.warn("%s already exists!" % DEFAULT_USER_PLUG_SCRIPT_PATH)
+	else:
+		var file = FileAccess.open(DEFAULT_USER_PLUG_SCRIPT_PATH, FileAccess.WRITE)
+		file.store_string(INIT_PLUG_SCRIPT)
+		file.close()
+		logger.info("Created %s" % DEFAULT_USER_PLUG_SCRIPT_PATH)
+
+
+func _plug_install():
+	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
+	threadpool.active = false
+	logger.info("Installing...")
+	for plugin in _plugged_plugins.values():
+		var installed = plugin.name in _installed_plugins
+		if installed:
+			var installed_plugin = get_installed_plugin(plugin.name)
+			if (installed_plugin.dev or plugin.dev) and OS.get_environment(ENV_PRODUCTION):
+				logger.info("Remove dev plugin for production: %s" % plugin.name)
+				threadpool.enqueue_task(uninstall_plugin.bind(installed_plugin))
+			else:
+				threadpool.enqueue_task(update_plugin.bind(plugin))
+		else:
+			threadpool.enqueue_task(install_plugin.bind(plugin))
+
+	var removed_plugins = []
+	for plugin in _installed_plugins.values():
+		var removed = not (plugin.name in _plugged_plugins)
+		if removed:
+			removed_plugins.append(plugin)
+	if removed_plugins:
+		threadpool.disconnect("all_thread_finished", request_quit)
+		if not threadpool.is_all_thread_finished():
+			threadpool.active = true
+			await threadpool.all_thread_finished
+			threadpool.active = false
+			logger.debug("All installation finished! Ready to uninstall removed plugins...")
+		threadpool.connect("all_thread_finished", request_quit)
+		for plugin in removed_plugins:
+			threadpool.enqueue_task(uninstall_plugin.bind(plugin), Thread.PRIORITY_LOW)
+	threadpool.active = true
+
+
+func _plug_uninstall():
+	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
+	threadpool.active = false
+	logger.info("Uninstalling...")
+	for plugin in _installed_plugins.values():
+		var installed_plugin = get_installed_plugin(plugin.name)
+		threadpool.enqueue_task(uninstall_plugin.bind(installed_plugin), Thread.PRIORITY_LOW)
+	threadpool.active = true
+
+
+func _plug_clean():
+	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
+	threadpool.active = false
+	logger.info("Cleaning...")
+	var plugged_dir = DirAccess.open(DEFAULT_PLUG_DIR)
+	plugged_dir.include_hidden = true
+	plugged_dir.list_dir_begin() # TODOGODOT4 fill missing arguments https://github.com/godotengine/godot/pull/40547
+	var file = plugged_dir.get_next()
+	while not file.is_empty():
+		if plugged_dir.current_is_dir():
+			if not (file in _installed_plugins):
+				logger.info("Remove %s" % file)
+				threadpool.enqueue_task(directory_delete_recursively.bind(plugged_dir.get_current_dir() + "/" + file))
+		file = plugged_dir.get_next()
+	plugged_dir.list_dir_end()
+	threadpool.active = true
+
+
+func _plug_upgrade():
+	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
+	threadpool.active = false
+	var upgrade_repo = OS.get_environment(ENV_UPGRADE_REPO).strip_edges()
+	if upgrade_repo.is_empty():
+		upgrade_repo = DEFAULT_UPGRADE_REPO
+	var upgrade_branch = OS.get_environment(ENV_UPGRADE_BRANCH).strip_edges()
+	if upgrade_branch.is_empty():
+		upgrade_branch = DEFAULT_UPGRADE_BRANCH
+	logger.info("Upgrading gd-plug from %s (branch %s)..." % [upgrade_repo, upgrade_branch])
+	plug(upgrade_repo, { "branch": upgrade_branch })
+	# Name aus dem Repo ableiten, beim Fork ist das "fork-gd-plug" statt "gd-plug"
+	var gd_plug = _plugged_plugins.get(get_plugin_name_from_repo(upgrade_repo))
+	if gd_plug == null:
+		logger.error("Failed to plug %s, upgrade aborted" % upgrade_repo)
+		return
+	# Stand gd-plug schon vorher im Index (über die plug.gd des Projekts), bleibt der Eintrag erhalten
+	var keep_in_index = gd_plug.name in _installed_plugins
+	OS.set_environment(ENV_FORCE, "true") # Required to overwrite res://addons/gd-plug/plug.gd
+	threadpool.enqueue_task(install_plugin.bind(gd_plug))
+	threadpool.disconnect("all_thread_finished", request_quit)
+	# Bei inaktivem Pool ist die Installation nur eingereiht, noch kein Thread läuft.
+	# Ohne Prüfung der Warteschlange liefe das Löschen von plug_dir parallel zum Klonen.
+	if not (threadpool.is_all_thread_finished() and threadpool.is_all_task_finished()):
+		threadpool.active = true
+		await threadpool.all_thread_finished
+		threadpool.active = false
+		logger.debug("All installation finished! Ready to uninstall removed plugins...")
+	# Sonst stünde gd-plug in index.cfg und das nächste "install" würde es als entfernt deinstallieren
+	if not keep_in_index:
+		_installed_plugins.erase(gd_plug.name)
+	threadpool.connect("all_thread_finished", request_quit)
+	threadpool.enqueue_task(directory_delete_recursively.bind(gd_plug.plug_dir))
+	threadpool.active = true
+
+
+func _plug_status():
+	assert(_installed_plugins != null, MSG_PLUG_START_ASSERTION)
+	threadpool.active = false
+	logger.info("Installed %d plugin%s" % [_installed_plugins.size(), "s" if _installed_plugins.size() > 1 else ""])
+	var new_plugins = _plugged_plugins.duplicate()
+	var has_checking_plugin = false
+	var removed_plugins = []
+	for plugin in _installed_plugins.values():
+		logger.info("- {name} - {url}".format(plugin))
+		new_plugins.erase(plugin.name)
+		var removed = not (plugin.name in _plugged_plugins)
+		if removed:
+			removed_plugins.append(plugin)
+		else:
+			threadpool.enqueue_task(check_plugin.bind(_plugged_plugins[plugin.name]))
+			has_checking_plugin = true
+	if has_checking_plugin:
+		logger.info("\n", true)
+		threadpool.disconnect("all_thread_finished", request_quit)
+		threadpool.active = true
+		await threadpool.all_thread_finished
+		threadpool.active = false
+		threadpool.connect("all_thread_finished", request_quit)
+		logger.debug("Finished checking plugins, ready to proceed")
+	if new_plugins:
+		logger.info("\nPlugged %d plugin%s" % [new_plugins.size(), "s" if new_plugins.size() > 1 else ""])
+		for plugin in new_plugins.values():
+			var is_new = not (plugin.name in _installed_plugins)
+			if is_new:
+				logger.info("- {name} - {url}".format(plugin))
+	if removed_plugins:
+		logger.info("\nUnplugged %d plugin%s" % [removed_plugins.size(), "s" if removed_plugins.size() > 1 else ""])
+		for plugin in removed_plugins:
+			logger.info("- %s removed" % plugin.name)
+	var plug_directory = DirAccess.open(DEFAULT_PLUG_DIR)
+	var orphan_dirs = []
+	if DirAccess.get_open_error() == OK:
+		plug_directory.list_dir_begin() # TODOGODOT4 fill missing arguments https://github.com/godotengine/godot/pull/40547
+		var file = plug_directory.get_next()
+		while not file.is_empty():
+			if plug_directory.current_is_dir():
+				if not (file in _installed_plugins):
+					orphan_dirs.append(file)
+			file = plug_directory.get_next()
+		plug_directory.list_dir_end()
+	if orphan_dirs:
+		logger.info(
+			"\nOrphan directory, %d found in %s, execute \"clean\" command to remove"
+			% [orphan_dirs.size(), DEFAULT_PLUG_DIR]
+		)
+		for dir in orphan_dirs:
+			logger.info("- %s" % dir)
+	threadpool.active = true
+
+	if has_checking_plugin:
+		request_quit()
+
+
 func _remove_import_file(dir, file, keep_import_resource_file = false, test = false, silent_test = false):
 	if not dir.file_exists(file):
 		return
@@ -899,43 +946,10 @@ func _remove_import_resource_file(dir, import_config, import_format = "", test =
 			else:
 				if dir.remove(checksum_file) == OK:
 					logger.debug("Remove import checksum file: " + checksum_file)
+#endregion
 
 
-func compare_plugins(p1, p2):
-	var changed_keys = []
-	for key in p1.keys():
-		var v1 = p1[key]
-		var v2 = p2[key]
-		if v1 != v2:
-			changed_keys.append(key)
-	return changed_keys
-
-
-func get_plugin_name_from_repo(repo):
-	repo = repo.replace(".git", "").trim_suffix("/")
-	return repo.get_file()
-
-
-func validate_var_type(obj, var_name, type, type_string):
-	var value = obj.get(var_name)
-	var is_valid = typeof(value) == type
-	if not is_valid:
-		logger.error("Expected variable \"%s\" to be %s, given %s" % [var_name, type_string, value])
-	return is_valid
-
-
-const INIT_PLUG_SCRIPT = """extends "res://addons/gd-plug/plug.gd"
-
-func _plugging():
-	# Declare plugins with plug(repo, args)
-	# For example, clone from github repo("user/repo_name")
-	# plug("imjp94/gd-YAFSM") # By default, gd-plug will only install anything from "addons/" directory
-	# Or you can explicitly specify which file/directory to include
-	# plug("imjp94/gd-YAFSM", {"include": ["addons/"]}) # By default, gd-plug will only install anything from "addons/" directory
-	pass
-"""
-
-
+#region Inner Classes
 class _GitExecutable extends RefCounted:
 	var cwd = ""
 	var logger
@@ -1354,3 +1368,4 @@ class _Logger extends RefCounted:
 		datetime.minute = "%02d" % datetime.minute
 		datetime.second = "%02d" % datetime.second
 		return datetime
+#endregion
