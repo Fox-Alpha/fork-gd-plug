@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased (fork Fox-Alpha/fork-gd-plug)
+
+- Features:
+  - `plug()` options `install_root` and `strip_prefix` for addons nested in non-standard directories
+  - `upgrade` installs gd-plug from this fork (`Fox-Alpha/fork-gd-plug`, branch `development`) instead of
+    `imjp94/gd-plug`, overridable with `GD_PLUG_UPGRADE_REPO` and `GD_PLUG_UPGRADE_BRANCH`
+- Bugfixes:
+  - `upgrade` deleted the downloaded clone while it was still being cloned
+  - `install` uninstalled gd-plug itself after an `upgrade`, because `upgrade` added it to `.plugged/index.cfg`
+
 ## 0.1.1
 
 - Bugfixes:
