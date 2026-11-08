@@ -16,8 +16,8 @@ extends SceneTree
 ## [codeblock]
 ## extends "res://addons/gd-plug/plug.gd"
 ##
-## func _plugging():
-##     plug("imjp94/gd-YAFSM", {"include": ["addons/"]})
+## func _plugging() -> void:
+##     plug("bitwes/Gut", {"tag": "v9.4.0"})
 ## [/codeblock]
 ##
 ## Intern wird ein Plugin als [Dictionary] geführt mit den Schlüsseln [code]name[/code],
