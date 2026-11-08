@@ -508,9 +508,9 @@ func directory_copy_recursively(from, to, args = { }):
 	var strip_prefix = args.get("strip_prefix", "")
 	var root_from = args.get("root_from", from)
 	var dir = DirAccess.open(from)
-	dir.include_hidden = true
 	var dest_files = []
-	if DirAccess.get_open_error() == OK:
+	if dir != null:
+		dir.include_hidden = true
 		dir.list_dir_begin() # TODOGODOT4 fill missing arguments https://github.com/godotengine/godot/pull/40547
 		var file_name = dir.get_next()
 		while not file_name.is_empty():
@@ -569,59 +569,59 @@ func directory_delete_recursively(dir_path, args = { }):
 	var test = args.get("test", false)
 	var silent_test = args.get("silent_test", false)
 	var dir = DirAccess.open(dir_path)
-	dir.include_hidden = true
-	if DirAccess.get_open_error() == OK:
-		dir.list_dir_begin() # TODOGODOT4 fill missing arguments https://github.com/godotengine/godot/pull/40547
-		var file_name = dir.get_next()
-		while not file_name.is_empty():
-			var source = dir.get_current_dir() + ("/" if dir.get_current_dir() != "res://" else "") + file_name
-
-			if dir.current_is_dir():
-				var sub_dir = directory_delete_recursively(source, args)
-				if remove_empty_directory:
-					if test:
-						if not silent_test:
-							logger.warn("[TEST] Remove empty directory: %s" % sub_dir.get_current_dir())
-					else:
-						if source.get_file() == ".git":
-							var empty_dir_path = ProjectSettings.globalize_path(source)
-							var exit = FAILED
-							match OS.get_name():
-								"Windows":
-									empty_dir_path = "\"%s\"" % empty_dir_path
-									empty_dir_path = empty_dir_path.replace("/", "\\")
-									var cmd = "rd /s /q %s" % empty_dir_path
-									exit = OS.execute("cmd", ["/C", cmd])
-								"macOS", "Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD":
-									empty_dir_path = "\'%s\'" % empty_dir_path
-									var cmd = "rm -rf %s" % empty_dir_path
-									exit = OS.execute("bash", ["-c", cmd])
-							# Hacks to remove .git, as git pack files stop it from being removed
-							# See https://stackoverflow.com/questions/1213430/how-to-fully-delete-a-git-repository-created-with-init
-							if exit == OK:
-								logger.debug("Remove empty directory: %s" % sub_dir.get_current_dir())
-							else:
-								logger.debug("Failed to remove empty directory: %s" % sub_dir.get_current_dir())
-						else:
-							if dir.remove(sub_dir.get_current_dir()) == OK:
-								logger.debug("Remove empty directory: %s" % sub_dir.get_current_dir())
-			else:
-				var excluded = false
-				for exclude_key in exclude:
-					if source in exclude_key:
-						excluded = true
-						break
-				if not excluded:
-					if test:
-						if not silent_test:
-							logger.warn("[TEST] Remove file: %s" % source)
-					else:
-						if dir.remove(file_name) == OK:
-							logger.debug("Remove file: %s" % source)
-			file_name = dir.get_next()
-		dir.list_dir_end()
-	else:
+	if dir == null:
 		logger.error("Failed to access path: %s" % dir_path)
+		return null
+	dir.include_hidden = true
+	dir.list_dir_begin() # TODOGODOT4 fill missing arguments https://github.com/godotengine/godot/pull/40547
+	var file_name = dir.get_next()
+	while not file_name.is_empty():
+		var source = dir.get_current_dir() + ("/" if dir.get_current_dir() != "res://" else "") + file_name
+
+		if dir.current_is_dir():
+			directory_delete_recursively(source, args)
+			if remove_empty_directory:
+				if test:
+					if not silent_test:
+						logger.warn("[TEST] Remove empty directory: %s" % source)
+				else:
+					if source.get_file() == ".git":
+						var empty_dir_path = ProjectSettings.globalize_path(source)
+						var exit = FAILED
+						match OS.get_name():
+							"Windows":
+								empty_dir_path = "\"%s\"" % empty_dir_path
+								empty_dir_path = empty_dir_path.replace("/", "\\")
+								var cmd = "rd /s /q %s" % empty_dir_path
+								exit = OS.execute("cmd", ["/C", cmd])
+							"macOS", "Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD":
+								empty_dir_path = "\'%s\'" % empty_dir_path
+								var cmd = "rm -rf %s" % empty_dir_path
+								exit = OS.execute("bash", ["-c", cmd])
+						# Hacks to remove .git, as git pack files stop it from being removed
+						# See https://stackoverflow.com/questions/1213430/how-to-fully-delete-a-git-repository-created-with-init
+						if exit == OK:
+							logger.debug("Remove empty directory: %s" % source)
+						else:
+							logger.debug("Failed to remove empty directory: %s" % source)
+					else:
+						if dir.remove(source) == OK:
+							logger.debug("Remove empty directory: %s" % source)
+		else:
+			var excluded = false
+			for exclude_key in exclude:
+				if source in exclude_key:
+					excluded = true
+					break
+			if not excluded:
+				if test:
+					if not silent_test:
+						logger.warn("[TEST] Remove file: %s" % source)
+				else:
+					if dir.remove(file_name) == OK:
+						logger.debug("Remove file: %s" % source)
+		file_name = dir.get_next()
+	dir.list_dir_end()
 
 	if remove_empty_directory:
 		dir.remove(dir.get_current_dir())
@@ -643,6 +643,9 @@ func directory_remove_batch(files, args = { }):
 
 		if not dir:
 			dir = DirAccess.open(file_dir)
+			if dir == null:
+				logger.warn("Failed to access path: %s" % file_dir)
+				continue
 			dirs[file_dir] = dir
 
 		if file.ends_with(".import"):
