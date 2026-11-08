@@ -685,7 +685,8 @@ func compare_plugins(p1, p2):
 	var changed_keys = []
 	for key in p1.keys():
 		var v1 = p1[key]
-		var v2 = p2[key]
+		# Index älterer Versionen kennt neue Optionen nicht, fehlende Schlüssel zählen als Änderung
+		var v2 = p2.get(key)
 		if v1 != v2:
 			changed_keys.append(key)
 	return changed_keys
