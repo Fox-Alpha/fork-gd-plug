@@ -219,7 +219,7 @@ func _plug_start():
 	logger.debug("Plug start")
 	if not project_dir.dir_exists(DEFAULT_PLUG_DIR):
 		if project_dir.make_dir(ProjectSettings.globalize_path(DEFAULT_PLUG_DIR)) == OK:
-			logger.debug("Make dir %s for plugin installation")
+			logger.debug("Make dir %s for plugin installation" % DEFAULT_PLUG_DIR)
 	if installation_config.load(DEFAULT_CONFIG_PATH) == OK:
 		logger.debug("Installation config loaded")
 	else:
@@ -1298,8 +1298,7 @@ class _Logger extends RefCounted:
 
 
 	func dedent():
-		indent_level -= 1
-		max(indent_level, 0)
+		indent_level = maxi(indent_level - 1, 0)
 
 
 	func lock():
