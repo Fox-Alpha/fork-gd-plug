@@ -21,3 +21,6 @@ addons/*
 !addons/gd-plug/
 # Add your custom addons below to keep them in git
 #!addons/my-custom-addon/
+
+# Lokales Testprojekt für die Integration von Addons, nicht versioniert
+/.reference/
