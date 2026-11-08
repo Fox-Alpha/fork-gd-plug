@@ -314,6 +314,8 @@ func _plug_upgrade():
 	if gd_plug == null:
 		logger.error("Failed to plug %s, upgrade aborted" % upgrade_repo)
 		return
+	# Stand gd-plug schon vorher im Index (über die plug.gd des Projekts), bleibt der Eintrag erhalten
+	var keep_in_index = gd_plug.name in _installed_plugins
 	OS.set_environment(ENV_FORCE, "true") # Required to overwrite res://addons/gd-plug/plug.gd
 	threadpool.enqueue_task(install_plugin.bind(gd_plug))
 	threadpool.disconnect("all_thread_finished", request_quit)
@@ -324,6 +326,9 @@ func _plug_upgrade():
 		await threadpool.all_thread_finished
 		threadpool.active = false
 		logger.debug("All installation finished! Ready to uninstall removed plugins...")
+	# Sonst stünde gd-plug in index.cfg und das nächste "install" würde es als entfernt deinstallieren
+	if not keep_in_index:
+		_installed_plugins.erase(gd_plug.name)
 	threadpool.connect("all_thread_finished", request_quit)
 	threadpool.enqueue_task(directory_delete_recursively.bind(gd_plug.plug_dir))
 	threadpool.active = true
